@@ -1,0 +1,47 @@
+name: Build Android APK
+
+# Builds the app from index.html (the player) and android-project.zip (the Android shell) in this repository.
+# To update the app later, upload a new index.html and/or android-project.zip and this runs by itself.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare the project
+        run: |
+          test -f index.html || { echo "index.html is missing from the top level of the repository."; exit 1; }
+          test -f android-project.zip || { echo "android-project.zip is missing from the top level of the repository."; exit 1; }
+          unzip -q -o android-project.zip
+          mkdir -p app/src/main/assets
+          cp index.html app/src/main/assets/index.html
+          find app -type f | sort
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build the APKs
+        run: gradle assembleDebug assembleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: centauri-media-player-apk
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
